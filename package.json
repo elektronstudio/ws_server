@@ -1,13 +1,6 @@
 {
-  "name": "ws_server",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "author": "",
-  "license": "ISC",
+  "name": "ws",
+  "private": true,
   "dependencies": {
     "ws": "^7.3.1"
   }
