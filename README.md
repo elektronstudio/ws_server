@@ -37,6 +37,6 @@ There a specific message format `{type: "statsRequest"}` that works in request-r
 const socket = new WebSocket("wss://your-server-here");
 
 socket.send(JSON.stringify({type: "statsRequest"}));
-socket.onmessage({ data } => console.log(JSON.parse(data)));
+socket.onmessage = ({ data } => console.log(JSON.parse(data));
 // {type: "statsResponse", clientCount: 1}
 ```
