@@ -2,12 +2,32 @@ const WebSocket = require("ws");
 
 const wss = new WebSocket.Server({ port: 8080 });
 
-wss.on("connection", function connection(ws) {
-  ws.on("message", function incoming(data) {
-    wss.clients.forEach(function each(client) {
+wss.on("connection", (ws) => {
+  ws.on("message", (data) => {
+    const d = safeJsonParse(data);
+    wss.clients.forEach((client) => {
       if (client.readyState === WebSocket.OPEN) {
-        client.send(data);
+        if (d && d.type === "statsRequest") {
+          if (client === ws) {
+            client.send(
+              JSON.stringify({
+                type: "statsResponse",
+                clientsCount: wss.clients.size,
+              })
+            );
+          }
+        } else {
+          client.send(data);
+        }
       }
     });
   });
 });
+
+function safeJsonParse(str) {
+  try {
+    return JSON.parse(str);
+  } catch (err) {
+    return null;
+  }
+}
