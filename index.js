@@ -7,13 +7,15 @@ wss.on("connection", (ws) => {
     const d = safeJsonParse(data);
     wss.clients.forEach((client) => {
       if (client.readyState === WebSocket.OPEN) {
-        if (d && d.type === "statsRequest" && client === ws) {
-          client.send(
-            JSON.stringify({
-              type: "statsResponse",
-              clientsCount: wss.clients.size,
-            })
-          );
+        if (d && d.type === "statsRequest") {
+          if (client === ws) {
+            client.send(
+              JSON.stringify({
+                type: "statsResponse",
+                clientsCount: wss.clients.size,
+              })
+            );
+          }
         } else {
           client.send(data);
         }
