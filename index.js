@@ -1,5 +1,7 @@
 const WebSocket = require("ws");
+const { App } = require("@tinyhttp/app");
 
+const app = new App();
 const wss = new WebSocket.Server({ port: 8080 });
 
 wss.on("connection", (ws) => {
@@ -23,6 +25,12 @@ wss.on("connection", (ws) => {
     });
   });
 });
+
+app
+  .get("/stats", (_, res) => {
+    res.json({ clientsCount: wss.clients.size });
+  })
+  .listen(8081);
 
 function safeJsonParse(str) {
   try {
