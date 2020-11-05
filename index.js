@@ -30,7 +30,11 @@ wss.on("connection", (ws) => {
     let newMessage = null;
     const m = safeJsonParse(message);
     if (m && m.type === "chat") {
-      messages.push(m);
+      if (m.value === "/clear") {
+        messages = [];
+      } else {
+        messages.push(m);
+      }
     }
     if (m && m.type === "updateUsername") {
       channelsInfo = updateUsername(channelsInfo, m.userId, m.userName);
