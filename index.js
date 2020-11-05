@@ -9,17 +9,18 @@ const removeFromArray = (arr, callback) => {
   }
 };
 
-const channelsInfo = [];
+let channelsInfo = {};
 
 const updateUsername = (channelsInfo, userId, userName) =>
   Object.fromEntries(
-    Object.entries(channelsInfo).map(([key, values]) => {
-      const updatedValues = values.map((v) => {
-        if (v.userId === userId) {
-          v.userName = userName;
+    Object.entries(channelsInfo).map(([channelKey, channelData]) => {
+      const updatedUsers = channelData.users.map((u) => {
+        if (u.userId === userId) {
+          u.userName = userName;
         }
+        return u;
       });
-      return [key, updatedValues];
+      return [channelKey, { ...channelData, users: updatedUsers }];
     })
   );
 
@@ -27,17 +28,27 @@ wss.on("connection", (ws) => {
   ws.on("message", (message) => {
     let newMessage = null;
     const m = safeJsonParse(message);
-    if (m && m.channel && m.type === "updateUsername") {
+    if (m && m.type === "updateUsername") {
       channelsInfo = updateUsername(channelsInfo, m.userId, m.userName);
+      newMessage = JSON.stringify(
+        createMessage({
+          type: "channelsInfo",
+          value: channelsInfo,
+        })
+      );
+      console.log(newMessage);
     }
     if (m && m.channel && m.type === "joinChannel") {
       if (!channelsInfo[m.channel]) {
-        channelsInfo[m.channel] = [];
+        channelsInfo[m.channel] = { users: [] };
       }
       if (
-        !channelsInfo[m.channel].map(({ userId }) => userId).includes(m.userId)
+        channelsInfo[m.channel].users &&
+        !channelsInfo[m.channel].users
+          .map(({ userId }) => userId)
+          .includes(m.userId)
       ) {
-        channelsInfo[m.channel].push({
+        channelsInfo[m.channel].users.push({
           userId: m.userId,
           userName: m.userName,
         });
@@ -52,10 +63,13 @@ wss.on("connection", (ws) => {
     if (m && m.channel && m.type === "leaveChannel") {
       if (
         channelsInfo[m.channel] &&
-        channelsInfo[m.channel].map(({ userId }) => userId).includes(m.userId)
+        channelsInfo[m.channel].users &&
+        channelsInfo[m.channel].users
+          .map(({ userId }) => userId)
+          .includes(m.userId)
       ) {
         removeFromArray(
-          channelsInfo[m.channel],
+          channelsInfo[m.channel].users,
           (user) => user.userId === m.userId
         );
         newMessage = JSON.stringify(
