@@ -9,12 +9,12 @@ const removeFromArray = (arr, callback) => {
   }
 };
 
-let channelsInfo = {};
+let channelInfo = {};
 let messages = [];
 
-const updateUsername = (channelsInfo, userId, userName) =>
+const updateUsername = (channelInfo, userId, userName) =>
   Object.fromEntries(
-    Object.entries(channelsInfo).map(([channelKey, channelData]) => {
+    Object.entries(channelInfo).map(([channelKey, channelData]) => {
       const updatedUsers = channelData.users.map((u) => {
         if (u.userId === userId) {
           u.userName = userName;
@@ -29,44 +29,44 @@ wss.on("connection", (ws) => {
   ws.on("message", (message) => {
     let newMessage = null;
     const m = safeJsonParse(message);
-    if (m && m.type === "chat") {
+    if (m && m.type === "CHAT") {
       if (m.value === "/clear") {
         messages = [];
       } else {
         messages.push(m);
       }
     }
-    if (m && m.type === "updateUsername") {
-      channelsInfo = updateUsername(channelsInfo, m.userId, m.userName);
+    if (m && m.type === "USERNAME_UPDATE") {
+      channelInfo = updateUsername(channelInfo, m.userId, m.userName);
       newMessage = createMessage({
-        type: "channelsInfo",
-        value: channelsInfo,
+        type: "CHANNEL_INFO",
+        value: channelInfo,
       });
     }
-    if (m && m.channel && m.type === "joinChannel") {
-      if (!channelsInfo[m.channel]) {
-        channelsInfo[m.channel] = { users: [] };
+    if (m && m.channel && m.type === "CHANNEL_JOIN") {
+      if (!channelInfo[m.channel]) {
+        channelInfo[m.channel] = { users: [] };
       }
       if (
-        channelsInfo[m.channel].users &&
-        !channelsInfo[m.channel].users
+        channelInfo[m.channel].users &&
+        !channelInfo[m.channel].users
           .map(({ userId }) => userId)
           .includes(m.userId)
       ) {
-        channelsInfo[m.channel].users.push({
+        channelInfo[m.channel].users.push({
           userId: m.userId,
           userName: m.userName,
         });
         newMessage = createMessage({
-          type: "channelsInfo",
-          value: channelsInfo,
+          type: "CHANNEL_INFO",
+          value: channelInfo,
         });
 
         wss.clients.forEach((client) => {
           if (client.readyState === WebSocket.OPEN && client === ws) {
             client.send(
               createMessage({
-                type: "syncChat",
+                type: "CHAT_SYNC",
                 channel: m.channel,
                 value: messages.filter(({ channel }) => channel === m.channel),
               })
@@ -75,21 +75,21 @@ wss.on("connection", (ws) => {
         });
       }
     }
-    if (m && m.channel && m.type === "leaveChannel") {
+    if (m && m.channel && m.type === "CHANNEL_LEAVE") {
       if (
-        channelsInfo[m.channel] &&
-        channelsInfo[m.channel].users &&
-        channelsInfo[m.channel].users
+        channelInfo[m.channel] &&
+        channelInfo[m.channel].users &&
+        channelInfo[m.channel].users
           .map(({ userId }) => userId)
           .includes(m.userId)
       ) {
         removeFromArray(
-          channelsInfo[m.channel].users,
+          channelInfo[m.channel].users,
           (user) => user.userId === m.userId
         );
         newMessage = createMessage({
-          type: "channelsInfo",
-          value: channelsInfo,
+          type: "CHANNEL_INFO",
+          value: channelInfo,
         });
       }
     }
