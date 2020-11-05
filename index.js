@@ -10,6 +10,7 @@ const removeFromArray = (arr, callback) => {
 };
 
 let channelsInfo = {};
+let messages = [];
 
 const updateUsername = (channelsInfo, userId, userName) =>
   Object.fromEntries(
@@ -28,15 +29,15 @@ wss.on("connection", (ws) => {
   ws.on("message", (message) => {
     let newMessage = null;
     const m = safeJsonParse(message);
+    if (m && m.type === "chat") {
+      messages.push(m);
+    }
     if (m && m.type === "updateUsername") {
       channelsInfo = updateUsername(channelsInfo, m.userId, m.userName);
-      newMessage = JSON.stringify(
-        createMessage({
-          type: "channelsInfo",
-          value: channelsInfo,
-        })
-      );
-      console.log(newMessage);
+      newMessage = createMessage({
+        type: "channelsInfo",
+        value: channelsInfo,
+      });
     }
     if (m && m.channel && m.type === "joinChannel") {
       if (!channelsInfo[m.channel]) {
@@ -52,12 +53,22 @@ wss.on("connection", (ws) => {
           userId: m.userId,
           userName: m.userName,
         });
-        newMessage = JSON.stringify(
-          createMessage({
-            type: "channelsInfo",
-            value: channelsInfo,
-          })
-        );
+        newMessage = createMessage({
+          type: "channelsInfo",
+          value: channelsInfo,
+        });
+
+        wss.clients.forEach((client) => {
+          if (client.readyState === WebSocket.OPEN && client === ws) {
+            client.send(
+              createMessage({
+                type: "syncChat",
+                channel: m.channel,
+                value: messages.filter(({ channel }) => channel === m.channel),
+              })
+            );
+          }
+        });
       }
     }
     if (m && m.channel && m.type === "leaveChannel") {
@@ -72,12 +83,10 @@ wss.on("connection", (ws) => {
           channelsInfo[m.channel].users,
           (user) => user.userId === m.userId
         );
-        newMessage = JSON.stringify(
-          createMessage({
-            type: "channelsInfo",
-            value: channelsInfo,
-          })
-        );
+        newMessage = createMessage({
+          type: "channelsInfo",
+          value: channelsInfo,
+        });
       }
     }
     wss.clients.forEach((client) => {
@@ -100,7 +109,7 @@ function safeJsonParse(str) {
 }
 
 const createMessage = (message) => {
-  return {
+  return JSON.stringify({
     id: randomId(),
     datetime: new Date().toISOString(),
     type: "",
@@ -109,7 +118,7 @@ const createMessage = (message) => {
     userName: "",
     value: "",
     ...message,
-  };
+  });
 };
 
 const shuffle = (arr) => arr.sort(() => Math.random() - 0.5);
