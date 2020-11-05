@@ -9,14 +9,14 @@ const removeFromArray = (arr, callback) => {
   }
 };
 
-const channels = {};
+const channelsInfo = [];
 
-const updateUsername = (channels, userid, username) =>
+const updateUsername = (channelsInfo, userId, userName) =>
   Object.fromEntries(
-    Object.entries(channels).map(([key, values]) => {
+    Object.entries(channelsInfo).map(([key, values]) => {
       const updatedValues = values.map((v) => {
-        if (v.userid === userid) {
-          v.username = username;
+        if (v.userId === userId) {
+          v.userName = userName;
         }
       });
       return [key, updatedValues];
@@ -28,35 +28,40 @@ wss.on("connection", (ws) => {
     let newMessage = null;
     const m = safeJsonParse(message);
     if (m && m.channel && m.type === "updateUsername") {
-      channels = updateUsername(channels, m.userid, m.username);
+      channelsInfo = updateUsername(channelsInfo, m.userId, m.userName);
     }
-    if (m && m.channel && m.type === "joinchannel") {
-      if (!channels[m.channel]) {
-        channels[m.channel] = [];
+    if (m && m.channel && m.type === "joinChannel") {
+      if (!channelsInfo[m.channel]) {
+        channelsInfo[m.channel] = [];
       }
-      if (!channels[m.channel].map(({ userid }) => userid).includes(m.userid)) {
-        channels[m.channel].push({ userid: m.userid, username: m.username });
+      if (
+        !channelsInfo[m.channel].map(({ userId }) => userId).includes(m.userId)
+      ) {
+        channelsInfo[m.channel].push({
+          userId: m.userId,
+          userName: m.userName,
+        });
         newMessage = JSON.stringify(
           createMessage({
-            type: "channels",
-            value: channels,
+            type: "channelsInfo",
+            value: channelsInfo,
           })
         );
       }
     }
-    if (m && m.channel && m.type === "leavechannel") {
+    if (m && m.channel && m.type === "leaveChannel") {
       if (
-        channels[m.channel] &&
-        channels[m.channel].map(({ userid }) => userid).includes(m.userid)
+        channelsInfo[m.channel] &&
+        channelsInfo[m.channel].map(({ userId }) => userId).includes(m.userId)
       ) {
         removeFromArray(
-          channels[m.channel],
-          (user) => user.userid === m.userid
+          channelsInfo[m.channel],
+          (user) => user.userId === m.userId
         );
         newMessage = JSON.stringify(
           createMessage({
-            type: "channels",
-            value: channels,
+            type: "channelsInfo",
+            value: channelsInfo,
           })
         );
       }
@@ -86,8 +91,8 @@ const createMessage = (message) => {
     datetime: new Date().toISOString(),
     type: "",
     channel: "",
-    userid: "",
-    username: "",
+    userId: "",
+    userName: "",
     value: "",
     ...message,
   };
