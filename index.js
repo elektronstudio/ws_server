@@ -12,12 +12,25 @@ const removeFromArray = (arr, callback) => {
 let channelInfo = {};
 let messages = [];
 
-const updateUsername = (channelInfo, userId, userName) =>
+const updateUser = (channelInfo, userId, key, value) =>
   Object.fromEntries(
     Object.entries(channelInfo).map(([channelKey, channelData]) => {
       const updatedUsers = channelData.users.map((u) => {
         if (u.userId === userId) {
-          u.userName = userName;
+          u[key] = value;
+        }
+        return u;
+      });
+      return [channelKey, { ...channelData, users: updatedUsers }];
+    })
+  );
+
+const updateUser2 = (channelInfo, userId, newUser) =>
+  Object.fromEntries(
+    Object.entries(channelInfo).map(([channelKey, channelData]) => {
+      const updatedUsers = channelData.users.map((u) => {
+        if (u.userId === userId) {
+          u = { ...u, ...newUser };
         }
         return u;
       });
@@ -37,7 +50,14 @@ wss.on("connection", (ws) => {
       }
     }
     if (m && m.type === "USERNAME_UPDATE") {
-      channelInfo = updateUsername(channelInfo, m.userId, m.userName);
+      channelInfo = updateUser(channelInfo, m.userId, "userName", m.userName);
+      newMessage = createMessage({
+        type: "CHANNEL_INFO",
+        value: channelInfo,
+      });
+    }
+    if (m && m.type === "USER_UPDATE") {
+      channelInfo = updateUser2(channelInfo, m.userId, m.value);
       newMessage = createMessage({
         type: "CHANNEL_INFO",
         value: channelInfo,
@@ -53,10 +73,7 @@ wss.on("connection", (ws) => {
           .map(({ userId }) => userId)
           .includes(m.userId)
       ) {
-        channelInfo[m.channel].users.push({
-          userId: m.userId,
-          userName: m.userName,
-        });
+        channelInfo[m.channel].users.push(m.value);
         newMessage = createMessage({
           type: "CHANNEL_INFO",
           value: channelInfo,
