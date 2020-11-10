@@ -3,7 +3,8 @@ const WebSocket = require("ws");
 const ws = new WebSocket("http://localhost:8080");
 
 ws.on("message", (data) => {
-  console.log(JSON.parse(data));
+  console.log(JSON.stringify(JSON.parse(data), null, 2));
+  console.log("------------------");
 });
 
 ws.on("open", async function () {
@@ -16,18 +17,18 @@ ws.on("open", async function () {
   });
   ws.send(m);
 
-  const m2 = createMessage({
-    type: "USER_UPDATE",
-    channel: "haam",
-    userId: "asdadaaa",
-    userName: "Makoooo",
-    locationX: 100,
-  });
-  ws.send(m2);
+  // const m2 = createMessage({
+  //   type: "USER_UPDATE",
+  //   channel: "haam",
+  //   userId: "asdadaaa",
+  //   userName: "Makoooo",
+  //   locationX: 100,
+  // });
+  // ws.send(m2);
 
   const m3 = createMessage({
-    type: "USER_UPDATE",
-    channel: "jaa",
+    type: "CHANNEL_LEAVE",
+    channel: "haam",
     userId: "asdada",
     userName: "Mako",
     locationX: 100,
