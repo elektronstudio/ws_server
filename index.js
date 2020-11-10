@@ -38,6 +38,7 @@ const removeUserFromChannel = (userId, channelId) => {
 };
 
 const upsertUser = (user) => {
+  delete user.channel;
   const existingUserIndex = users.findIndex(
     ({ userId }) => userId === user.userId
   );
@@ -52,21 +53,21 @@ const upsertUser = (user) => {
   }
 };
 
-const mergeChannelsAndUsers = () =>
-  Object.fromEntries(
-    channels.map((channel) => {
-      channel.users = channel.userIds
-        .map((userId) => {
-          const user = users.find((u) => u.userId === userId);
-          if (user) {
-            delete user.channel;
-          }
-          return user ? user : null;
-        })
-        .filter((user) => user);
-      return [channel.channel, channel.users];
-    })
-  );
+// const mergeChannelsAndUsers = () =>
+//   Object.fromEntries(
+//     channels.map((channel) => {
+//       channel.users = channel.userIds
+//         .map((userId) => {
+//           const user = users.find((u) => u.userId === userId);
+//           if (user) {
+//             delete user.channel;
+//           }
+//           return user ? user : null;
+//         })
+//         .filter((user) => user);
+//       return [channel.channel, channel.users];
+//     })
+//   );
 
 // const ttlUpdateUsers = () => {
 //   users = users.map((user) => {
@@ -86,8 +87,19 @@ wss.on("connection", (ws) => {
     const m = safeJsonParse(message);
 
     if (m && m.type === "CHAT") {
-      if (m.value === "/clean") {
-        messages = messages.filter(({ channel }) => channel === m.channel);
+      if (m.value === "/reset") {
+        messages = [];
+        users = [];
+        channels = [];
+        newMessage = createMessage({
+          type: "USERS_UPDATE",
+          value: users,
+        });
+        newMessage = createMessage({
+          type: "CHANNELS_UPDATE",
+          value: channels,
+        });
+        // TODO Send more resets
       } else {
         messages.push(m);
       }
