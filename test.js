@@ -2,9 +2,9 @@ const WebSocket = require("ws");
 
 const ws = new WebSocket("http://localhost:8080");
 
-// ws.on("message", (data) => {
-//   console.log(data);
-// });
+ws.on("message", (data) => {
+  console.log(JSON.parse(data));
+});
 
 ws.on("open", async function () {
   const m = createMessage({
