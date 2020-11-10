@@ -93,15 +93,15 @@ wss.on("connection", (ws) => {
       }
     }
 
-    if (m && m.type === "USER_JOIN") {
+    if (m && m.type === "CHANNEL_JOIN") {
       let { id, type, datetime, value, ...user } = m;
 
       addUserToChannel(m.userId, m.channel);
       upsertUser({ ...user });
 
       newMessage = createMessage({
-        type: "USERS_UPDATE",
-        value: mergeChannelsAndUsers(),
+        type: "CHANNELS_UPDATE",
+        value: channels,
       });
 
       wss.clients.forEach((client) => {
@@ -117,13 +117,15 @@ wss.on("connection", (ws) => {
       });
     }
 
-    if (m && m.type === "USER_LEAVE") {
+    if (m && m.type === "CHANNEL_LEAVE") {
       let { id, type, datetime, value, ...user } = m;
+
       removeUserFromChannel(m.userId, m.channel);
       upsertUser({ ...user });
+
       newMessage = createMessage({
-        type: "USERS_UPDATE",
-        value: mergeChannelsAndUsers(),
+        type: "CHANNELS_UPDATE",
+        value: channels,
       });
     }
 
@@ -133,7 +135,7 @@ wss.on("connection", (ws) => {
       upsertUser({ ...user, ...m.value });
       newMessage = createMessage({
         type: "USERS_UPDATE",
-        value: mergeChannelsAndUsers(),
+        value: users,
       });
     }
 
