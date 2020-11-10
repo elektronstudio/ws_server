@@ -16,7 +16,24 @@ ws.on("open", async function () {
   });
   ws.send(m);
 
-  //setTimeout(() => ws.send(m), 4000);
+  const m2 = createMessage({
+    type: "USER_UPDATE",
+    channel: "haam",
+    userId: "asdadaaa",
+    userName: "Makoooo",
+    locationX: 100,
+  });
+  ws.send(m2);
+
+  const m3 = createMessage({
+    type: "USER_UPDATE",
+    channel: "jaa",
+    userId: "asdada",
+    userName: "Mako",
+    locationX: 100,
+  });
+
+  setTimeout(() => ws.send(m3), 2000);
 });
 
 const createMessage = (message) => {

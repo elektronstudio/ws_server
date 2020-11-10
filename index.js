@@ -11,7 +11,7 @@ const removeFromArray = (arr, callback) => {
   }
 };
 
-let channels = {};
+let channels = [];
 let users = [];
 let messages = [];
 
@@ -31,39 +31,51 @@ const ttlStep = 10;
 //     })
 //   );
 
-const addUserToChannel = (userId, channel) => {
-  if (!channels[channel]) {
-    channels[channel] = [];
-  }
-  if (!channels[channel].includes(userId)) {
-    channels[channel].push(userId);
+const addUserToChannel = (userId, channelId) => {
+  const channelIndex = channels.findIndex(
+    ({ channel }) => channel === channelId
+  );
+  if (channelIndex > -1) {
+    if (!channels[channelIndex].userIds.includes(userId)) {
+      channels[channelIndex].userIds.push(userId);
+    }
+  } else {
+    channels.push({ channel: channelId, userIds: [userId] });
   }
 };
 
-const upsertUser = (user, ttlReset = false) => {
+const upsertUser = (user) => {
   const existingUserIndex = users.findIndex(
     ({ userId }) => userId === user.userId
   );
   const existingUser = users[existingUserIndex];
   if (existingUserIndex > -1) {
-    const ttl = ttlReset
-      ? ttlInitial
-      : existingUser.ttl > 0
-      ? existingUser.ttl - ttlStep
-      : 0;
-
-    console.log(user.ttl, existingUser.ttl, ttl);
-
     users[existingUserIndex] = {
       ...existingUser,
       ...user,
-      ttl,
+      ttl: ttlInitial,
     };
   } else {
     users.push({ ...user, ttl: ttlInitial });
   }
 };
 
+const updateUsersTtl = () => {
+  users = users.map((user) => {
+    user.ttl = user.ttl > 0 ? user.ttl - ttlStep : 0;
+    return user;
+  });
+};
+
+const mergeChannelsUsers = () =>
+  channesl.map((channel) => {
+    channel.users = channel.userIds
+      .map((userId) => {
+        const user = users.find((u) => u.userId === userId);
+        return user ? user : null;
+      })
+      .filter((user) => user);
+  });
 //const = (update) => {
 
 // const user = update();
@@ -103,7 +115,6 @@ wss.on("connection", (ws) => {
     if (m && m.type === "CHAT") {
       if (m.value === "/clean") {
         messages = messages.filter(({ channel }) => channel === m.channel);
-        console.log(messages);
       } else {
         messages.push(m);
       }
@@ -121,6 +132,7 @@ wss.on("connection", (ws) => {
       let { id, type, datetime, value, ...user } = m;
       upsertUser({ ...user, ...m.value }, (ttlReset = true));
       addUserToChannel(m.userId, m.channel);
+      console.log(users);
       console.log(channels);
       // channels = updateUser((user) => ({
       //   userId: m.userId,
@@ -195,10 +207,10 @@ wss.on("connection", (ws) => {
   });
 });
 
-setInterval(() => {
-  users.forEach(upsertUser);
-  console.log(users);
-}, 2000);
+// setInterval(() => {
+//   updateUsersTtl();
+//   console.log(users);
+// }, 5000);
 
 // setInterval(() => {
 //   Object.entries(channels).forEach(([_, channel]) => {
