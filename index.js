@@ -2,6 +2,8 @@ const WebSocket = require("ws");
 
 const wss = new WebSocket.Server({ port: 8080 });
 
+const hasValue = (arr, key, value) => arr.find((item) => item[key] === value);
+
 const removeFromArray = (arr, callback) => {
   const index = arr.findIndex(callback);
   if (index > -1) {
@@ -9,90 +11,179 @@ const removeFromArray = (arr, callback) => {
   }
 };
 
-let channelInfo = {};
+let channels = {};
+let users = [];
 let messages = [];
 
-const updateUsername = (channelInfo, userId, userName) =>
-  Object.fromEntries(
-    Object.entries(channelInfo).map(([channelKey, channelData]) => {
-      const updatedUsers = channelData.users.map((u) => {
-        if (u.userId === userId) {
-          u.userName = userName;
-        }
-        return u;
-      });
-      return [channelKey, { ...channelData, users: updatedUsers }];
-    })
+const ttlInitial = 60; // 1 min
+const ttlStep = 10;
+
+// const updateUsername = (channels, userId, userName) =>
+//   Object.fromEntries(
+//     Object.entries(channels).map(([channelKey, channelData]) => {
+//       const updatedchannels = channelData.channels.map((u) => {
+//         if (u.userId === userId) {
+//           u.userName = userName;
+//         }
+//         return u;
+//       });
+//       return [channelKey, { ...channelData, channels: updatedchannels }];
+//     })
+//   );
+
+const addUserToChannel = (userId, channel) => {
+  if (!channels[channel]) {
+    channels[channel] = [];
+  }
+  if (!channels[channel].includes(userId)) {
+    channels[channel].push(userId);
+  }
+};
+
+const upsertUser = (user, ttlReset = false) => {
+  const existingUserIndex = users.findIndex(
+    ({ userId }) => userId === user.userId
   );
+  const existingUser = users[existingUserIndex];
+  if (existingUserIndex > -1) {
+    const ttl = ttlReset
+      ? ttlInitial
+      : existingUser.ttl > 0
+      ? existingUser.ttl - ttlStep
+      : 0;
+
+    console.log(user.ttl, existingUser.ttl, ttl);
+
+    users[existingUserIndex] = {
+      ...existingUser,
+      ...user,
+      ttl,
+    };
+  } else {
+    users.push({ ...user, ttl: ttlInitial });
+  }
+};
+
+//const = (update) => {
+
+// const user = update();
+// if (user.userId && user.channel && !channels[user.channel]) {
+//   channels[user.channel] = { [user.userId]: user };
+//   console.log("new");
+// } else {
+//   console.log("new");
+//   channels = Object.fromEntries(
+//     Object.entries(channels).map(([channelKey, users]) => {
+//       if (!users) {
+//         users = {};
+//       }
+//       if (!users[update().userId]) {
+//         users[user.userId] = user;
+//         delete users[user.userId].userId;
+//       } else {
+//         const updatedChannel = channelData.users.map((u) => {
+//           const updatedUser = updateUser(u);
+//           if (u.userId === updatedUser.userId) {
+//             u = { ...u, ...updatedUser };
+//           }
+//           return u;
+//         });
+//       }
+//       return [channelKey, users];
+//     })
+//   );
+// }
+//};
 
 wss.on("connection", (ws) => {
   ws.on("message", (message) => {
     let newMessage = null;
     const m = safeJsonParse(message);
+
     if (m && m.type === "CHAT") {
-      if (m.value === "/clear") {
-        messages = [];
+      if (m.value === "/clean") {
+        messages = messages.filter(({ channel }) => channel === m.channel);
+        console.log(messages);
       } else {
         messages.push(m);
       }
     }
-    if (m && m.type === "USERNAME_UPDATE") {
-      channelInfo = updateUsername(channelInfo, m.userId, m.userName);
-      newMessage = createMessage({
-        type: "CHANNEL_INFO",
-        value: channelInfo,
-      });
-    }
-    if (m && m.channel && m.type === "CHANNEL_JOIN") {
-      if (!channelInfo[m.channel]) {
-        channelInfo[m.channel] = { users: [] };
-      }
-      if (
-        channelInfo[m.channel].users &&
-        !channelInfo[m.channel].users
-          .map(({ userId }) => userId)
-          .includes(m.userId)
-      ) {
-        channelInfo[m.channel].users.push({
-          userId: m.userId,
-          userName: m.userName,
-        });
-        newMessage = createMessage({
-          type: "CHANNEL_INFO",
-          value: channelInfo,
-        });
 
-        wss.clients.forEach((client) => {
-          if (client.readyState === WebSocket.OPEN && client === ws) {
-            client.send(
-              createMessage({
-                type: "CHAT_SYNC",
-                channel: m.channel,
-                value: messages.filter(({ channel }) => channel === m.channel),
-              })
-            );
-          }
-        });
-      }
+    // if (m && m.type === "USERNAME_UPDATE") {
+    //   channels = updateUsername(channels, m.userId, m.userName);
+    //   newMessage = createMessage({
+    //     type: "CHANNEL_INFO",
+    //     value: channels,
+    //   });
+    // }
+
+    if (m && m.type === "USER_UPDATE") {
+      let { id, type, datetime, value, ...user } = m;
+      upsertUser({ ...user, ...m.value }, (ttlReset = true));
+      addUserToChannel(m.userId, m.channel);
+      console.log(channels);
+      // channels = updateUser((user) => ({
+      //   userId: m.userId,
+      //   userName: m.userName,
+      //   ttl: user && user.ttl ? user.ttl - ttlStep : ttlInitial,
+      // }));
+      //console.log(channels);
+      // newMessage = createMessage({
+      //   type: "CHANNELS_UPDATE",
+      //   value: channels,
+      // });
     }
-    if (m && m.channel && m.type === "CHANNEL_LEAVE") {
-      if (
-        channelInfo[m.channel] &&
-        channelInfo[m.channel].users &&
-        channelInfo[m.channel].users
-          .map(({ userId }) => userId)
-          .includes(m.userId)
-      ) {
-        removeFromArray(
-          channelInfo[m.channel].users,
-          (user) => user.userId === m.userId
-        );
-        newMessage = createMessage({
-          type: "CHANNEL_INFO",
-          value: channelInfo,
-        });
-      }
-    }
+
+    // if (m && m.channel && m.type === "USER_") {
+    //   if (!channels[m.channel]) {
+    //     channels[m.channel] = { users: {} };
+    //   }
+    //   if (
+    //     channels[m.channel].channels &&
+    //     !channels[m.channel].channels
+    //       .map(({ userId }) => userId)
+    //       .includes(m.userId)
+    //   ) {
+    //     channels[m.channel].channels.push({
+    //       userId: m.userId,
+    //       userName: m.userName,
+    //     });
+    //     newMessage = createMessage({
+    //       type: "channels",
+    //       value: channels,
+    //     });
+
+    //     wss.clients.forEach((client) => {
+    //       if (client.readyState === WebSocket.OPEN && client === ws) {
+    //         client.send(
+    //           createMessage({
+    //             type: "CHATS",
+    //             channel: m.channel,
+    //             value: messages.filter(({ channel }) => channel === m.channel),
+    //           })
+    //         );
+    //       }
+    //     });
+    //   }
+    // }
+
+    // if (m && m.channel && m.type === "CHANNEL_LEAVE") {
+    //   if (
+    //     channels[m.channel] &&
+    //     channels[m.channel].channels &&
+    //     channels[m.channel].channels.map(({ userId }) => userId).includes(m.userId)
+    //   ) {
+    //     removeFromArray(
+    //       channels[m.channel].channels,
+    //       (user) => user.userId === m.userId
+    //     );
+    //     newMessage = createMessage({
+    //       type: "CHANNEL_INFO",
+    //       value: channels,
+    //     });
+    //   }
+    // }
+
     wss.clients.forEach((client) => {
       if (client.readyState === WebSocket.OPEN) {
         client.send(message);
@@ -103,6 +194,24 @@ wss.on("connection", (ws) => {
     });
   });
 });
+
+setInterval(() => {
+  users.forEach(upsertUser);
+  console.log(users);
+}, 2000);
+
+// setInterval(() => {
+//   Object.entries(channels).forEach(([_, channel]) => {
+//     Object.entries(channel).forEach(([_, { userId }]) => {
+//       channels = updateUser(({ ttl }) => ({
+//         userId,
+//         ttl: ttl - ttlStep,
+//       }));
+//     });
+//   });
+// }, ttlStep * 100);
+
+// Utlities
 
 function safeJsonParse(str) {
   try {
