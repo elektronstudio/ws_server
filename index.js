@@ -68,15 +68,17 @@ const updateUsersTtl = () => {
 };
 
 const mergeChannelsAndUsers = () =>
-  channels.map((channel) => {
-    channel.users = channel.userIds
-      .map((userId) => {
-        const user = users.find((u) => u.userId === userId);
-        return user ? user : null;
-      })
-      .filter((user) => user);
-    return channel;
-  });
+  Object.fromEntries(
+    channels.map((channel) => {
+      channel.users = channel.userIds
+        .map((userId) => {
+          const user = users.find((u) => u.userId === userId);
+          return user ? user : null;
+        })
+        .filter((user) => user);
+      return [channel.channel, { users: channel.users }];
+    })
+  );
 //const = (update) => {
 
 // const user = update();
@@ -131,7 +133,7 @@ wss.on("connection", (ws) => {
 
     if (m && m.type === "USER_UPDATE") {
       let { id, type, datetime, value, ...user } = m;
-      upsertUser({ ...user, ...m.value }, (ttlReset = true));
+      upsertUser({ ...user, ...m.value });
       addUserToChannel(m.userId, m.channel);
       console.log(JSON.stringify(mergeChannelsAndUsers(), null, 2));
       // channels = updateUser((user) => ({
