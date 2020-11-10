@@ -95,11 +95,25 @@ wss.on("connection", (ws) => {
 
     if (m && m.type === "USER_JOIN") {
       let { id, type, datetime, value, ...user } = m;
+
       addUserToChannel(m.userId, m.channel);
       upsertUser({ ...user });
+
       newMessage = createMessage({
         type: "USERS_UPDATE",
         value: mergeChannelsAndUsers(),
+      });
+
+      wss.clients.forEach((client) => {
+        if (client.readyState === WebSocket.OPEN && client === ws) {
+          client.send(
+            createMessage({
+              type: "CHAT_SYNC",
+              channel: m.channel,
+              value: messages.filter(({ channel }) => channel === m.channel),
+            })
+          );
+        }
       });
     }
 
@@ -145,8 +159,13 @@ function safeJsonParse(str) {
 }
 
 const createMessage = (message) => {
+  const id = "abcdefghijklmnopqrstuvwxyz"
+    .split("")
+    .sort(() => Math.random() - 0.5)
+    .slice(0, 16)
+    .join("");
   return JSON.stringify({
-    id: randomId(),
+    id,
     datetime: new Date().toISOString(),
     type: "",
     channel: "",
@@ -155,13 +174,4 @@ const createMessage = (message) => {
     value: "",
     ...message,
   });
-};
-
-const shuffle = (arr) => arr.sort(() => Math.random() - 0.5);
-
-// Strings
-
-const randomId = (length = 16) => {
-  const letters = "abcdefghijklmnopqrstuvwxyz".split("");
-  return shuffle(letters).slice(0, length).join("");
 };
