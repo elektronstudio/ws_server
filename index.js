@@ -3,7 +3,6 @@ const WebSocket = require("ws");
 const wss = new WebSocket.Server({ port: 8080 });
 
 let channels = {};
-let users = {};
 let messages = [];
 
 const objectMap = (obj, callback) =>
@@ -54,46 +53,25 @@ const removeUserInChannel = (user, channel) => {
   }
 };
 
-// const upsertUser = (user) => {
-//   if (user && userId) {
-//     delete user.channel;
-//     if (!users[user.userId]) {
-//       users[user.userId] = user;
-//     } else {
-//       users[user.userId] = {
-//         ...users[user.userId],
-//         ...user,
-//       };
-//     }
-//   }
-// };
-
 wss.on("connection", (ws) => {
   ws.on("message", (message) => {
     let newMessage = [];
     const m = safeJsonParse(message);
 
+    if (m && m.type === "RESET") {
+      channels = {};
+      newMessage = createMessage({
+        type: "CHANNELS_UPDATED",
+        value: channels,
+      });
+    }
+
     if (m && m.type === "CHAT") {
-      // if (m.value === "/reset") {
-      //   messages = [];
-      //   users = [];
-      //   channels = [];
-      //   newMessage = createMessage({
-      //     type: "USERS_UPDATE",
-      //     value: users,
-      //   });
-      //   newMessage = createMessage({
-      //     type: "CHANNELS_UPDATE",
-      //     value: channels,
-      //   });
-      //   // TODO Send more resets
-      // } else {
       messages.push(m);
-      //}
     }
 
     if (m && m.type === "CHANNEL_JOIN") {
-      const user = { userId: m.userId, ...m.value };
+      const user = { userId: m.userId, userName: m.userName };
       upsertUserInChannel(user, m.channel);
       newMessage = createMessage({
         type: "CHANNELS_UPDATED",
@@ -125,9 +103,7 @@ wss.on("connection", (ws) => {
 
     if (m && m.type === "USER_UPDATE") {
       const user = { userId: m.userId, ...m.value };
-      //upsertUser(user); // TODO: Do we need it?
       upsertUserInAllChannels(user);
-      // TODO: USER_UPDATED - Do we need it?
       newMessage = createMessage({
         type: "CHANNELS_UPDATED",
         value: channels,
