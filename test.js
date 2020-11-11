@@ -6,7 +6,7 @@ ws.on("message", (data) => {
   console.log(JSON.stringify(JSON.parse(data), null, 2));
   console.log("------------------");
 });
-
+/*
 ws.on("open", async function () {
   const m = createMessage({
     type: "CHANNEL_JOIN",
@@ -57,6 +57,7 @@ ws.on("open", async function () {
 
   // setTimeout(() => ws.send(m3), 2000);
 });
+*/
 
 const createMessage = (message) => {
   const id = "abcdefghijklmnopqrstuvwxyz"

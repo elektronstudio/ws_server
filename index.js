@@ -10,35 +10,42 @@ const objectMap = (obj, callback) =>
   Object.fromEntries(Object.entries(obj).map(callback));
 
 const upsertUserInChannel = (user, channel) => {
-  if (!channels[channel]) {
-    channels[channel] = { users: {} };
-  }
-  if (user.channel) {
-    delete user.channel;
-  }
-  const existingUser = channels[channel].users[user.userId];
-  if (!user) {
-    channels[channel].users[user.userId] = user;
-  } else {
-    channels[channel].users[user.userId] = { ...existingUser, ...user };
+  if (user && user.userId && channel) {
+    if (!channels[channel]) {
+      channels[channel] = { users: {} };
+    }
+    if (user.channel) {
+      delete user.channel;
+    }
+    const existingUser = channels[channel].users[user.userId];
+    if (!user) {
+      channels[channel].users[user.userId] = user;
+    } else {
+      channels[channel].users[user.userId] = { ...existingUser, ...user };
+    }
+    if (channels[channel].users[user.userId].userId) {
+      delete channels[channel].users[user.userId].userId;
+    }
   }
 };
 
 const upsertUserInAllChannels = (user) => {
-  channels = objectMap(channels, ([channelId, channel]) => {
-    channel.users = objectMap(
-      channel.users,
-      ([existingUserId, existingUser]) => {
-        if (existingUserId === user.userId) {
-          existingUser = { ...existingUser, ...user };
-          delete existingUser.channel;
-          delete existingUser.userId;
+  if (user && user.userId) {
+    channels = objectMap(channels, ([channelId, channel]) => {
+      channel.users = objectMap(
+        channel.users,
+        ([existingUserId, existingUser]) => {
+          if (existingUserId === user.userId) {
+            existingUser = { ...existingUser, ...user };
+            delete existingUser.channel;
+            delete existingUser.userId;
+          }
+          return [existingUserId, existingUser];
         }
-        return [existingUserId, existingUser];
-      }
-    );
-    return [channelId, channel];
-  });
+      );
+      return [channelId, channel];
+    });
+  }
 };
 
 const removeUserInChannel = (user, channel) => {
@@ -47,17 +54,19 @@ const removeUserInChannel = (user, channel) => {
   }
 };
 
-const upsertUser = (user) => {
-  delete user.channel;
-  if (!users[user.userId]) {
-    users[user.userId] = user;
-  } else {
-    users[user.userId] = {
-      ...users[user.userId],
-      ...user,
-    };
-  }
-};
+// const upsertUser = (user) => {
+//   if (user && userId) {
+//     delete user.channel;
+//     if (!users[user.userId]) {
+//       users[user.userId] = user;
+//     } else {
+//       users[user.userId] = {
+//         ...users[user.userId],
+//         ...user,
+//       };
+//     }
+//   }
+// };
 
 wss.on("connection", (ws) => {
   ws.on("message", (message) => {
@@ -105,7 +114,8 @@ wss.on("connection", (ws) => {
     }
 
     if (m && m.type === "CHANNEL_LEAVE") {
-      removeUserInChannel(m.userId, m.channel);
+      const user = { userId: m.userId };
+      removeUserInChannel(user, m.channel);
 
       newMessage = createMessage({
         type: "CHANNELS_UPDATED",
