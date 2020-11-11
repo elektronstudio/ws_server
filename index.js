@@ -2,117 +2,91 @@ const WebSocket = require("ws");
 
 const wss = new WebSocket.Server({ port: 8080 });
 
-let channels = [];
-let users = [];
+let channels = {};
+let users = {};
 let messages = [];
 
-// const ttlInitial = 60;
-// const ttlStep = 10;
+const objectMap = (callback) =>
+  Object.fromEntries(Object.entries(obj).map(callback));
 
-const addUserToChannel = (userId, channelId) => {
-  const channelIndex = channels.findIndex(
-    ({ channel }) => channel === channelId
-  );
-  if (channelIndex > -1) {
-    if (!channels[channelIndex].userIds.includes(userId)) {
-      channels[channelIndex].userIds.push(userId);
-    }
+const upsertUserInChannel = (user, channel) => {
+  if (!channels[channel]) {
+    channels[channel] = { users: {} };
+  }
+  if (user.channel) {
+    delete user.channel;
+  }
+  const existingUser = channels[channel].users[user.userId];
+  if (!user) {
+    channels[channel].users[user.userId] = user;
   } else {
-    channels.push({ channel: channelId, userIds: [userId] });
+    channels[channel].users[user.userId] = { ...existingUser, ...user };
   }
 };
 
-const removeUserFromChannel = (userId, channelId) => {
-  const channelIndex = channels.findIndex(
-    ({ channel }) => channel === channelId
-  );
-  if (channelIndex > -1 && channels[channelIndex].userIds) {
-    const userIndex = channels[channelIndex].userIds.findIndex(
-      (id) => id === userId
-    );
-    channels[channelIndex].userIds = channels[channelIndex].userIds.slice(
-      0,
-      userIndex
-    );
+const upsertUserInAllChannels = (user) => {
+  channels = objectMap((channel) => {
+    channel.users = objectMap((user) => {
+      if (user.channel) {
+        delete user.channel;
+      }
+      if (user.userId === user.userId) {
+        user = { ...user, ...user };
+      }
+      return user;
+    });
+    return channel;
+  });
+};
+
+const removeUserInChannel = (user, channel) => {
+  if (channels[channel] && channels[channel].users[user.userId]) {
+    delete channels[channel].users[user.userId];
   }
 };
 
 const upsertUser = (user) => {
   delete user.channel;
-  const existingUserIndex = users.findIndex(
-    ({ userId }) => userId === user.userId
-  );
-  const existingUser = users[existingUserIndex];
-  if (existingUserIndex > -1) {
-    users[existingUserIndex] = {
-      ...existingUser,
+  if (!users[user.userId]) {
+    users[user.userId] = user;
+  } else {
+    users[user.userId] = {
+      ...users[user.userId],
       ...user,
     };
-  } else {
-    users.push({ ...user });
   }
 };
 
-// const mergeChannelsAndUsers = () =>
-//   Object.fromEntries(
-//     channels.map((channel) => {
-//       channel.users = channel.userIds
-//         .map((userId) => {
-//           const user = users.find((u) => u.userId === userId);
-//           if (user) {
-//             delete user.channel;
-//           }
-//           return user ? user : null;
-//         })
-//         .filter((user) => user);
-//       return [channel.channel, channel.users];
-//     })
-//   );
-
-// const ttlUpdateUsers = () => {
-//   users = users.map((user) => {
-//     user.ttl = user.ttl > 0 ? user.ttl - ttlStep : 0;
-//     return user;
-//   });
-// };
-
-// setInterval(() => {
-//   ttlUpdateUsers();
-//   console.log(users);
-// }, 5000);
-
 wss.on("connection", (ws) => {
   ws.on("message", (message) => {
-    let newMessage = null;
+    let newMessage = [];
     const m = safeJsonParse(message);
 
     if (m && m.type === "CHAT") {
-      if (m.value === "/reset") {
-        messages = [];
-        users = [];
-        channels = [];
-        newMessage = createMessage({
-          type: "USERS_UPDATE",
-          value: users,
-        });
-        newMessage = createMessage({
-          type: "CHANNELS_UPDATE",
-          value: channels,
-        });
-        // TODO Send more resets
-      } else {
-        messages.push(m);
-      }
+      // if (m.value === "/reset") {
+      //   messages = [];
+      //   users = [];
+      //   channels = [];
+      //   newMessage = createMessage({
+      //     type: "USERS_UPDATE",
+      //     value: users,
+      //   });
+      //   newMessage = createMessage({
+      //     type: "CHANNELS_UPDATE",
+      //     value: channels,
+      //   });
+      //   // TODO Send more resets
+      // } else {
+      messages.push(m);
+      //}
     }
 
     if (m && m.type === "CHANNEL_JOIN") {
-      let { id, type, datetime, value, ...user } = m;
-
-      addUserToChannel(m.userId, m.channel);
-      upsertUser({ ...user });
-
+      const user = { userId: m.userId, ...m.value };
+      upsertUserInChannel(user);
       newMessage = createMessage({
-        type: "CHANNELS_UPDATE",
+        type: "CHANNEL_UPDATE",
+        channel: m.channel,
         value: channels,
       });
 
@@ -130,24 +104,31 @@ wss.on("connection", (ws) => {
     }
 
     if (m && m.type === "CHANNEL_LEAVE") {
-      let { id, type, datetime, value, ...user } = m;
-
       removeUserFromChannel(m.userId, m.channel);
-      upsertUser({ ...user });
+
+      newMessage = createMessage({
+        type: "CHANNEL_UPDATE",
+        value: channels[m.channel],
+      });
+    }
+
+    if (m && m.type === "USER_UPDATE") {
+      const user = { userId: m.userId, ...m.value };
+      //upsertUser(user); // TODO: Do we need it?
+      upsertUserInAllChannels(user);
 
       newMessage = createMessage({
         type: "CHANNELS_UPDATE",
         value: channels,
       });
+      // TODO: USERS_UPDATE - Do we need it?
     }
 
-    if (m && m.type === "USER_UPDATE") {
-      let { id, type, datetime, value, ...user } = m;
-      addUserToChannel(m.userId, m.channel);
-      upsertUser({ ...user, ...m.value });
+    if (m && m.type === "CHANNEL_USER_UPDATE") {
+      upsertUserInChannel({ userId: m.userId, ...m.value }, m.channel);
       newMessage = createMessage({
-        type: "USERS_UPDATE",
-        value: users,
+        type: "CHANNELS_UPDATE",
+        value: channels,
       });
     }
 
