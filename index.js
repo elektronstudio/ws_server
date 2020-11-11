@@ -6,7 +6,7 @@ let channels = {};
 let users = {};
 let messages = [];
 
-const objectMap = (callback) =>
+const objectMap = (obj, callback) =>
   Object.fromEntries(Object.entries(obj).map(callback));
 
 const upsertUserInChannel = (user, channel) => {
@@ -25,17 +25,19 @@ const upsertUserInChannel = (user, channel) => {
 };
 
 const upsertUserInAllChannels = (user) => {
-  channels = objectMap((channel) => {
-    channel.users = objectMap((user) => {
-      if (user.channel) {
-        delete user.channel;
+  channels = objectMap(channels, ([channelId, channel]) => {
+    channel.users = objectMap(
+      channel.users,
+      ([existingUserId, existingUser]) => {
+        if (existingUserId === user.userId) {
+          existingUser = { ...existingUser, ...user };
+          delete existingUser.channel;
+          delete existingUser.userId;
+        }
+        return [existingUserId, existingUser];
       }
-      if (user.userId === user.userId) {
-        user = { ...user, ...user };
-      }
-      return user;
-    });
-    return channel;
+    );
+    return [channelId, channel];
   });
 };
 
@@ -83,10 +85,9 @@ wss.on("connection", (ws) => {
 
     if (m && m.type === "CHANNEL_JOIN") {
       const user = { userId: m.userId, ...m.value };
-      upsertUserInChannel(user);
+      upsertUserInChannel(user, m.channel);
       newMessage = createMessage({
-        type: "CHANNEL_UPDATE",
-        channel: m.channel,
+        type: "CHANNELS_UPDATED",
         value: channels,
       });
 
@@ -94,7 +95,7 @@ wss.on("connection", (ws) => {
         if (client.readyState === WebSocket.OPEN && client === ws) {
           client.send(
             createMessage({
-              type: "CHAT_SYNC",
+              type: "CHAT_SYNCED",
               channel: m.channel,
               value: messages.filter(({ channel }) => channel === m.channel),
             })
@@ -104,11 +105,11 @@ wss.on("connection", (ws) => {
     }
 
     if (m && m.type === "CHANNEL_LEAVE") {
-      removeUserFromChannel(m.userId, m.channel);
+      removeUserInChannel(m.userId, m.channel);
 
       newMessage = createMessage({
-        type: "CHANNEL_UPDATE",
-        value: channels[m.channel],
+        type: "CHANNELS_UPDATED",
+        value: channels,
       });
     }
 
@@ -116,18 +117,18 @@ wss.on("connection", (ws) => {
       const user = { userId: m.userId, ...m.value };
       //upsertUser(user); // TODO: Do we need it?
       upsertUserInAllChannels(user);
-
+      // TODO: USER_UPDATED - Do we need it?
       newMessage = createMessage({
-        type: "CHANNELS_UPDATE",
+        type: "CHANNELS_UPDATED",
         value: channels,
       });
-      // TODO: USERS_UPDATE - Do we need it?
     }
 
     if (m && m.type === "CHANNEL_USER_UPDATE") {
-      upsertUserInChannel({ userId: m.userId, ...m.value }, m.channel);
+      const user = { userId: m.userId, ...m.value };
+      upsertUserInChannel(user, m.channel);
       newMessage = createMessage({
-        type: "CHANNELS_UPDATE",
+        type: "CHANNELS_UPDATED",
         value: channels,
       });
     }

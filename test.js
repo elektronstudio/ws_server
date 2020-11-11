@@ -10,19 +10,42 @@ ws.on("message", (data) => {
 ws.on("open", async function () {
   const m = createMessage({
     type: "CHANNEL_JOIN",
-    channel: "haam",
-    userId: "asdada",
+    channel: "first",
+    userId: "mako",
     userName: "Mako",
   });
   ws.send(m);
 
-  // const m2 = createMessage({
-  //   type: "CHANNEL_USER_UPDATE",
-  //   channel: "haam",
-  //   userId: "asdada",
-  //   locationX: 100,
-  // });
-  // ws.send(m2);
+  const m2 = createMessage({
+    type: "CHANNEL_JOIN",
+    channel: "first",
+    userId: "koko",
+    userName: "Koko",
+  });
+  ws.send(m2);
+
+  const m3 = createMessage({
+    type: "CHANNEL_USER_UPDATE",
+    channel: "first",
+    userId: "mako",
+    value: { userName: "Macarena", locationX: 100 },
+  });
+  ws.send(m3);
+
+  const m4 = createMessage({
+    type: "CHANNEL_JOIN",
+    channel: "second",
+    userId: "koko",
+    userName: "Koko",
+  });
+  ws.send(m4);
+
+  const m5 = createMessage({
+    type: "USER_UPDATE",
+    userId: "koko",
+    value: { userName: "Kokoburra", locationY: 100 },
+  });
+  ws.send(m5);
 
   // const m3 = createMessage({
   //   type: "CHANNEL_LEAVE",
