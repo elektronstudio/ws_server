@@ -60,6 +60,7 @@ wss.on("connection", (ws) => {
 
     if (m && m.type === "RESET") {
       channels = {};
+      messages = [];
       newMessage = createMessage({
         type: "CHANNELS_UPDATED",
         value: channels,
@@ -113,6 +114,7 @@ wss.on("connection", (ws) => {
     if (m && m.type === "CHANNEL_USER_UPDATE") {
       const user = { userId: m.userId, ...m.value };
       upsertUserInChannel(user, m.channel);
+
       newMessage = createMessage({
         type: "CHANNELS_UPDATED",
         value: channels,
