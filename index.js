@@ -104,7 +104,7 @@ wss.on("connection", (ws) => {
         if (client.readyState === WebSocket.OPEN && client === ws) {
           client.send(
             createMessage({
-              type: "CHAT_SYNCED",
+              type: "CHAT_SYNC",
               channel: m.channel,
               value: messages.filter(({ channel }) => channel === m.channel),
             })
