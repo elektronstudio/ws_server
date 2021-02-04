@@ -4,6 +4,7 @@ const wss = new WebSocket.Server({ port: 8080 });
 
 let channels = {};
 let messages = [];
+let likes = [];
 
 const objectMap = (obj, callback) =>
   Object.fromEntries(Object.entries(obj).map(callback));
@@ -68,7 +69,27 @@ wss.on("connection", (ws) => {
     }
 
     if (m && m.type === "CHAT") {
-      messages.push(m);
+      if (m.value === "/reset") {
+        messages = [];
+        likes = [];
+        users = [];
+        channels = [];
+        newMessage = createMessage({
+          type: "USERS_UPDATE",
+          value: users,
+        });
+        newMessage = createMessage({
+          type: "CHANNELS_UPDATE",
+          value: channels,
+        });
+        // TODO Send more resets
+      } else {
+        messages.push(m);
+      }
+    }
+
+    if (m && m.type === "LIKE") {
+      likes.push(m);
     }
 
     if (m && m.type === "CHANNEL_JOIN") {
@@ -86,6 +107,13 @@ wss.on("connection", (ws) => {
               type: "CHAT_SYNCED",
               channel: m.channel,
               value: messages.filter(({ channel }) => channel === m.channel),
+            })
+          );
+          client.send(
+            createMessage({
+              type: "LIKE_SYNC",
+              channel: m.channel,
+              value: likes.filter(({ channel }) => channel === m.channel),
             })
           );
         }
