@@ -5,6 +5,7 @@ const wss = new WebSocket.Server({ port: 8080 });
 let channels = [];
 let users = [];
 let messages = [];
+let likes = [];
 
 // const ttlInitial = 60;
 // const ttlStep = 10;
@@ -89,6 +90,7 @@ wss.on("connection", (ws) => {
     if (m && m.type === "CHAT") {
       if (m.value === "/reset") {
         messages = [];
+        likes = [];
         users = [];
         channels = [];
         newMessage = createMessage({
@@ -103,6 +105,10 @@ wss.on("connection", (ws) => {
       } else {
         messages.push(m);
       }
+    }
+
+    if (m && m.type === "LIKE") {
+      likes.push(m);
     }
 
     if (m && m.type === "CHANNEL_JOIN") {
@@ -123,6 +129,13 @@ wss.on("connection", (ws) => {
               type: "CHAT_SYNC",
               channel: m.channel,
               value: messages.filter(({ channel }) => channel === m.channel),
+            })
+          );
+          client.send(
+            createMessage({
+              type: "LIKE_SYNC",
+              channel: m.channel,
+              value: likes.filter(({ channel }) => channel === m.channel),
             })
           );
         }
