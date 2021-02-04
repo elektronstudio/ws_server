@@ -6,36 +6,58 @@ ws.on("message", (data) => {
   console.log(JSON.stringify(JSON.parse(data), null, 2));
   console.log("------------------");
 });
-
+/*
 ws.on("open", async function () {
   const m = createMessage({
-    type: "USER_UPDATE",
-    channel: "haam",
-    userId: "asdada",
+    type: "CHANNEL_JOIN",
+    channel: "first",
+    userId: "mako",
     userName: "Mako",
-    locationX: 100,
   });
   ws.send(m);
 
-  // const m2 = createMessage({
-  //   type: "USER_UPDATE",
-  //   channel: "haam",
-  //   userId: "asdadaaa",
-  //   userName: "Makoooo",
-  //   locationX: 100,
-  // });
-  // ws.send(m2);
+  const m2 = createMessage({
+    type: "CHANNEL_JOIN",
+    channel: "first",
+    userId: "koko",
+    userName: "Koko",
+  });
+  ws.send(m2);
 
   const m3 = createMessage({
-    type: "CHANNEL_LEAVE",
-    channel: "haam",
-    userId: "asdada",
-    userName: "Mako",
-    locationX: 100,
+    type: "CHANNEL_USER_UPDATE",
+    channel: "first",
+    userId: "mako",
+    value: { userName: "Macarena", locationX: 100 },
   });
+  ws.send(m3);
 
-  setTimeout(() => ws.send(m3), 2000);
+  const m4 = createMessage({
+    type: "CHANNEL_JOIN",
+    channel: "second",
+    userId: "koko",
+    userName: "Koko",
+  });
+  ws.send(m4);
+
+  const m5 = createMessage({
+    type: "USER_UPDATE",
+    userId: "koko",
+    value: { userName: "Kokoburra", locationY: 100 },
+  });
+  ws.send(m5);
+
+  // const m3 = createMessage({
+  //   type: "CHANNEL_LEAVE",
+  //   channel: "haam",
+  //   userId: "asdada",
+  //   userName: "Mako",
+  //   locationX: 100,
+  // });
+
+  // setTimeout(() => ws.send(m3), 2000);
 });
+*/
 
 const createMessage = (message) => {
   const id = "abcdefghijklmnopqrstuvwxyz"

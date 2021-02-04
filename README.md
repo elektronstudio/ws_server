@@ -1,6 +1,6 @@
 ### About
 
-Websocket echo server
+Websocket broadcasting server powering https://elektron.live
 
 ### Installation and running
 

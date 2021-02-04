@@ -2,90 +2,71 @@ const WebSocket = require("ws");
 
 const wss = new WebSocket.Server({ port: 8080 });
 
-let channels = [];
-let users = [];
+let channels = {};
 let messages = [];
 let likes = [];
 
-// const ttlInitial = 60;
-// const ttlStep = 10;
+const objectMap = (obj, callback) =>
+  Object.fromEntries(Object.entries(obj).map(callback));
 
-const addUserToChannel = (userId, channelId) => {
-  const channelIndex = channels.findIndex(
-    ({ channel }) => channel === channelId
-  );
-  if (channelIndex > -1) {
-    if (!channels[channelIndex].userIds.includes(userId)) {
-      channels[channelIndex].userIds.push(userId);
+const upsertUserInChannel = (user, channel) => {
+  if (user && user.userId && channel) {
+    if (!channels[channel]) {
+      channels[channel] = { users: {} };
     }
-  } else {
-    channels.push({ channel: channelId, userIds: [userId] });
+    if (user.channel) {
+      delete user.channel;
+    }
+    const existingUser = channels[channel].users[user.userId];
+    if (!user) {
+      channels[channel].users[user.userId] = user;
+    } else {
+      channels[channel].users[user.userId] = { ...existingUser, ...user };
+    }
+    if (channels[channel].users[user.userId].userId) {
+      delete channels[channel].users[user.userId].userId;
+    }
   }
 };
 
-const removeUserFromChannel = (userId, channelId) => {
-  const channelIndex = channels.findIndex(
-    ({ channel }) => channel === channelId
-  );
-  if (channelIndex > -1 && channels[channelIndex].userIds) {
-    const userIndex = channels[channelIndex].userIds.findIndex(
-      (id) => id === userId
-    );
-    channels[channelIndex].userIds = channels[channelIndex].userIds.slice(
-      0,
-      userIndex
-    );
+const upsertUserInAllChannels = (user) => {
+  if (user && user.userId) {
+    channels = objectMap(channels, ([channelId, channel]) => {
+      channel.users = objectMap(
+        channel.users,
+        ([existingUserId, existingUser]) => {
+          if (existingUserId === user.userId) {
+            existingUser = { ...existingUser, ...user };
+            delete existingUser.channel;
+            delete existingUser.userId;
+          }
+          return [existingUserId, existingUser];
+        }
+      );
+      return [channelId, channel];
+    });
   }
 };
 
-const upsertUser = (user) => {
-  delete user.channel;
-  const existingUserIndex = users.findIndex(
-    ({ userId }) => userId === user.userId
-  );
-  const existingUser = users[existingUserIndex];
-  if (existingUserIndex > -1) {
-    users[existingUserIndex] = {
-      ...existingUser,
-      ...user,
-    };
-  } else {
-    users.push({ ...user });
+const removeUserInChannel = (user, channel) => {
+  if (channels[channel] && channels[channel].users[user.userId]) {
+    delete channels[channel].users[user.userId];
   }
 };
-
-// const mergeChannelsAndUsers = () =>
-//   Object.fromEntries(
-//     channels.map((channel) => {
-//       channel.users = channel.userIds
-//         .map((userId) => {
-//           const user = users.find((u) => u.userId === userId);
-//           if (user) {
-//             delete user.channel;
-//           }
-//           return user ? user : null;
-//         })
-//         .filter((user) => user);
-//       return [channel.channel, channel.users];
-//     })
-//   );
-
-// const ttlUpdateUsers = () => {
-//   users = users.map((user) => {
-//     user.ttl = user.ttl > 0 ? user.ttl - ttlStep : 0;
-//     return user;
-//   });
-// };
-
-// setInterval(() => {
-//   ttlUpdateUsers();
-//   console.log(users);
-// }, 5000);
 
 wss.on("connection", (ws) => {
   ws.on("message", (message) => {
-    let newMessage = null;
+    let newMessage = [];
     const m = safeJsonParse(message);
+
+    if (m && m.type === "RESET") {
+      channels = {};
+      messages = [];
+      newMessage = createMessage({
+        type: "CHANNELS_UPDATED",
+        value: channels,
+      });
+    }
 
     if (m && m.type === "CHAT") {
       if (m.value === "/reset") {
@@ -112,13 +93,10 @@ wss.on("connection", (ws) => {
     }
 
     if (m && m.type === "CHANNEL_JOIN") {
-      let { id, type, datetime, value, ...user } = m;
-
-      addUserToChannel(m.userId, m.channel);
-      upsertUser({ ...user });
-
+      const user = { userId: m.userId, userName: m.userName };
+      upsertUserInChannel(user, m.channel);
       newMessage = createMessage({
-        type: "CHANNELS_UPDATE",
+        type: "CHANNELS_UPDATED",
         value: channels,
       });
 
@@ -126,7 +104,7 @@ wss.on("connection", (ws) => {
         if (client.readyState === WebSocket.OPEN && client === ws) {
           client.send(
             createMessage({
-              type: "CHAT_SYNC",
+              type: "CHAT_SYNCED",
               channel: m.channel,
               value: messages.filter(({ channel }) => channel === m.channel),
             })
@@ -143,24 +121,31 @@ wss.on("connection", (ws) => {
     }
 
     if (m && m.type === "CHANNEL_LEAVE") {
-      let { id, type, datetime, value, ...user } = m;
-
-      removeUserFromChannel(m.userId, m.channel);
-      upsertUser({ ...user });
+      const user = { userId: m.userId };
+      removeUserInChannel(user, m.channel);
 
       newMessage = createMessage({
-        type: "CHANNELS_UPDATE",
+        type: "CHANNELS_UPDATED",
         value: channels,
       });
     }
 
     if (m && m.type === "USER_UPDATE") {
-      let { id, type, datetime, value, ...user } = m;
-      addUserToChannel(m.userId, m.channel);
-      upsertUser({ ...user, ...m.value });
+      const user = { userId: m.userId, ...m.value };
+      upsertUserInAllChannels(user);
       newMessage = createMessage({
-        type: "USERS_UPDATE",
-        value: users,
+        type: "CHANNELS_UPDATED",
+        value: channels,
+      });
+    }
+
+    if (m && m.type === "CHANNEL_USER_UPDATE") {
+      const user = { userId: m.userId, ...m.value };
+      upsertUserInChannel(user, m.channel);
+
+      newMessage = createMessage({
+        type: "CHANNELS_UPDATED",
+        value: channels,
       });
     }
 
