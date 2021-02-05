@@ -21,3 +21,5 @@ const socket = new WebSocket("wss://your-server-here");
 socket.send(JSON.stringify({ value: "test" }));
 socket.onmessage = ({ data }) => console.log(JSON.parse(data)); //
 ```
+
+...
